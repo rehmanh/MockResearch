@@ -41,24 +41,14 @@ public class GetInfo extends AbstractHandler {
 		IProject[] projects = root.getProjects();
 		try {
 			//GetMockitoEasyMock_API(projects);
-			getMockitoFunctionsFromProject(projects);
+			parseFilesWithMockImport(projects);
 		} catch (CoreException e) {
 			System.out.println(e.toString());
+		} finally {
+			System.out.println("\n\n!!!Done!!!\n\n");
 		}
 
 		return null;
-	}
-
-	private boolean Import_mock(ICompilationUnit unit) throws CoreException {
-		if (unit.getImports().length <= 0) {
-			return false;
-		}
-		for (IImportDeclaration import_mock : unit.getImports()) {
-			if (import_mock.getElementName().contains("mockito")) {
-				return true;
-			}
-		}
-		return false;
 	}
 	
 	private boolean isMockitoImportUsed(ICompilationUnit unit) throws CoreException {
@@ -74,13 +64,7 @@ public class GetInfo extends AbstractHandler {
 		return false;
 	}
 	
-	private void getMockitoFunctionsFromProject(IProject[] projects) throws CoreException {
-		// declare array for mocked object visitors and errors
-		ArrayList<String> mockedObjectVisitorList = new ArrayList<>();
-		ArrayList<String> errorList = new ArrayList<>();
-		
-		Map<String, String> nodeValues = new HashMap<String, String>();
-		
+	private void parseFilesWithMockImport(IProject[] projects) throws CoreException {
 		// parse through each project in the workspace
 		for (IProject project : projects) {
 			System.out.println(String.format("!!!Parsing the project %s!!!", project.toString()));
@@ -97,28 +81,10 @@ public class GetInfo extends AbstractHandler {
 							CompilationUnit ast = parse(unit);
 							if (isMockitoImportUsed(unit)) {
 								try {
-									MockAPIVisitor mockApiVisitor = new MockAPIVisitor();
-									ast.accept(mockApiVisitor);
-									
-//									mockedObjectVisitorList.add(String.format("%s | %s",
-//											mockApiVisitor.getMethods()
-//											));
-									
-//									Map<ITypeBinding, String> objectToTestCaseMap = mockObjectVisitor.getTypeToTestCaseMap();
-//									Map<ITypeBinding, Boolean> objectToMockMap = mockObjectVisitor.getTypeToMockMap();
-//									
-//									for (ITypeBinding mockedObject : objectToTestCaseMap.keySet()) {
-//										mockedObjectVisitorList.add(String.format("%s | %s | %s | %s \n", 
-//												unit.getPath().toString(), 
-//												objectToTestCaseMap.get(mockedObject).toString(),
-//												mockedObject.getQualifiedName(),
-//												objectToMockMap.get(mockedObject)
-//												));
-//									}
+									visitFileWithMockImport(ast);
 								} catch (NullPointerException npe) {
 									String error = unit.getPath().toString() + "\n";
 									System.err.println(error);
-									errorList.add(error);
 								}
 							}
 						}
@@ -126,66 +92,32 @@ public class GetInfo extends AbstractHandler {
 				}
 			}
 		}
-		System.out.println(mockedObjectVisitorList.toString());
 	}
-
-	private void GetMockitoEasyMock_API(IProject[] projects) throws CoreException {
-		ArrayList<String> MockedObjectVisitorList = new ArrayList<>();
-		ArrayList<String> err_arr = new ArrayList<>();
-
-//		go throw all the project
-		for (IProject project : projects) {
-
-			if (project.isNatureEnabled(JDT_NATURE)) {
-
-				IPackageFragment[] packages = JavaCore.create(project).getPackageFragments();
-				for (IPackageFragment mypackage : packages) {
-					if (mypackage.getKind() == IPackageFragmentRoot.K_SOURCE) {
-						System.out.println("\n\n\n!!!!!Getting compilation Units now!!!!!\n\n\n");
-						for (ICompilationUnit unit : mypackage.getCompilationUnits()) {// this is file level
-
-							// now create the AST for the ICompilationUnits
-							CompilationUnit parse = parse(unit);
-//							if (Import_mock(unit)) {
-
-							try {
-								TestCaseObjectVisitor mockobjectvisitor = new TestCaseObjectVisitor();
-
-								parse.accept(mockobjectvisitor);
-
-
-							    Map<ITypeBinding, String> objectToTestCaseMap = mockobjectvisitor.getTypeToTestCaseMap();
-							    Map<ITypeBinding, Boolean> objectToMockMap = mockobjectvisitor.getTypeToMockMap();
-								for (ITypeBinding mockedObject :objectToTestCaseMap.keySet() ) {
-									MockedObjectVisitorList.add(unit.getPath().toString() + "|"
-											+ objectToTestCaseMap.get(mockedObject) + "|" +  mockedObject.getQualifiedName() + "|"
-											+ objectToMockMap.get(mockedObject)+"\n");
-								}
-//									
-
-							} catch (NullPointerException e) {
-								System.err.println(unit.getPath().toString());
-								err_arr.add(unit.getPath().toString() + '\n');
-							}
-
-//							}
-
-						}
-						
-					}
-					
-				}
-				break;
-			}
-		}
-
-
-		//String MockObjectPath="C:\\Users\\10590\\OneDrive - stevens.edu\\PHD\\2023 aSpring\\task\\mock-test case analysis\\"+projects[0].getName() + ".csv";
-		//String MockObjectPath= "/Users/rehmanh/Desktop/" + projects[0].getName() + ".csv";
-		String MockObjectPath= projects[0].getName() + ".csv";
-		print_arr_to_csv(MockedObjectVisitorList,MockObjectPath);
+	
+	private void visitFileWithMockImport(CompilationUnit ast) throws NullPointerException {
+		// visit the file that leverages the mockito framework
+		MockAPIVisitor mockApiVisitor = new MockAPIVisitor();
+		ast.accept(mockApiVisitor);
 		
+//		mockedObjectVisitorList.add(String.format("%s | %s",
+//				mockApiVisitor.getMethods()
+//				));
+		
+//		Map<ITypeBinding, String> objectToTestCaseMap = mockObjectVisitor.getTypeToTestCaseMap();
+//		Map<ITypeBinding, Boolean> objectToMockMap = mockObjectVisitor.getTypeToMockMap();
+//		
+//		for (ITypeBinding mockedObject : objectToTestCaseMap.keySet()) {
+//			mockedObjectVisitorList.add(String.format("%s | %s | %s | %s \n", 
+//					unit.getPath().toString(), 
+//					objectToTestCaseMap.get(mockedObject).toString(),
+//					mockedObject.getQualifiedName(),
+//					objectToMockMap.get(mockedObject)
+//					));
+//		}
+//		String MockObjectPath= projects[0].getName() + ".csv";
+//		print_arr_to_csv(MockedObjectVisitorList,MockObjectPath);
 	}
+
 
 	private void print_arr_to_csv(ArrayList<String> data, String path) {
 		if (data.size() > 0) {
@@ -214,7 +146,6 @@ public class GetInfo extends AbstractHandler {
 	private static CompilationUnit parse(ICompilationUnit unit) {
 		ASTParser parser = ASTParser.newParser(AST.JLS16);
 		parser.setKind(ASTParser.K_COMPILATION_UNIT);
-//		parser.setKind(ASTParser.K_CLASS_BODY_DECLARATIONS);
 		parser.setSource(unit);
 		parser.setResolveBindings(true);
 		return (CompilationUnit) parser.createAST(null); // parse
