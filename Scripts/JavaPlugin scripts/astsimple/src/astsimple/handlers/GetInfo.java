@@ -23,6 +23,7 @@ import org.eclipse.jdt.core.IPackageFragmentRoot;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTParser;
+import org.eclipse.jdt.core.dom.Annotation;
 import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.core.dom.ITypeBinding;
 import org.eclipse.jdt.core.dom.MethodInvocation;
@@ -40,7 +41,6 @@ public class GetInfo extends AbstractHandler {
 		IWorkspaceRoot root = workspace.getRoot();
 		IProject[] projects = root.getProjects();
 		try {
-			//GetMockitoEasyMock_API(projects);
 			parseFilesWithMockImport(projects);
 		} catch (CoreException e) {
 			System.out.println(e.toString());
@@ -54,7 +54,7 @@ public class GetInfo extends AbstractHandler {
 	private boolean isMockitoImportUsed(ICompilationUnit unit) throws CoreException {
 		if (unit.getImports().length > 0) {
 			for (IImportDeclaration importDeclaration : unit.getImports()) {
-				if (importDeclaration.getElementName().contains("mockito")) {
+				if (importDeclaration.getElementName().toLowerCase().contains("mockito")) {
 					return true;
 				}
 			}
@@ -67,7 +67,7 @@ public class GetInfo extends AbstractHandler {
 	private void parseFilesWithMockImport(IProject[] projects) throws CoreException {
 		// parse through each project in the workspace
 		for (IProject project : projects) {
-			System.out.println(String.format("!!!Parsing the project %s!!!", project.toString()));
+			System.out.println(String.format("!!!Parsing the project %s!!!", project.getName()));
 			// check if project is java nature
 			if (project.isNatureEnabled(JDT_NATURE)) {
 				// get all the packages from the project
@@ -81,10 +81,14 @@ public class GetInfo extends AbstractHandler {
 							CompilationUnit ast = parse(unit);
 							if (isMockitoImportUsed(unit)) {
 								try {
-									visitFileWithMockImport(ast);
+									visitFileWithMockImport(ast, project.getName());
 								} catch (NullPointerException npe) {
-									String error = unit.getPath().toString() + "\n";
-									System.err.println(error);
+									String errorPath = unit.getPath().toString() + "\n";
+									System.err.println(errorPath);
+									System.err.println(npe.toString());
+								} catch (Exception ex) {
+									System.err.println("Generic Exception:\n");
+									System.err.println(ex.toString());
 								}
 							}
 						}
@@ -94,31 +98,19 @@ public class GetInfo extends AbstractHandler {
 		}
 	}
 	
-	private void visitFileWithMockImport(CompilationUnit ast) throws NullPointerException {
+	private void visitFileWithMockImport(CompilationUnit ast, String projectName) throws NullPointerException {
 		// visit the file that leverages the mockito framework
 		MockAPIVisitor mockApiVisitor = new MockAPIVisitor();
 		ast.accept(mockApiVisitor);
 		
-//		mockedObjectVisitorList.add(String.format("%s | %s",
-//				mockApiVisitor.getMethods()
-//				));
+		String className = mockApiVisitor.getClassName().concat(".java");
+		List<String> mockClassVariables = mockApiVisitor.getMockedClassVariables();
+		List<Annotation> annotations = mockApiVisitor.getAnnotations();
 		
-//		Map<ITypeBinding, String> objectToTestCaseMap = mockObjectVisitor.getTypeToTestCaseMap();
-//		Map<ITypeBinding, Boolean> objectToMockMap = mockObjectVisitor.getTypeToMockMap();
-//		
-//		for (ITypeBinding mockedObject : objectToTestCaseMap.keySet()) {
-//			mockedObjectVisitorList.add(String.format("%s | %s | %s | %s \n", 
-//					unit.getPath().toString(), 
-//					objectToTestCaseMap.get(mockedObject).toString(),
-//					mockedObject.getQualifiedName(),
-//					objectToMockMap.get(mockedObject)
-//					));
-//		}
-//		String MockObjectPath= projects[0].getName() + ".csv";
-//		print_arr_to_csv(MockedObjectVisitorList,MockObjectPath);
+		System.out.println(String.format("%s\n %s\n %s\n %s\n", projectName, className, annotations.toString(), mockClassVariables.toString()));
 	}
 
-
+	@Deprecated
 	private void print_arr_to_csv(ArrayList<String> data, String path) {
 		if (data.size() > 0) {
 			try (FileOutputStream fos = new FileOutputStream(path)) {

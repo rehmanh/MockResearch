@@ -20,81 +20,80 @@ import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
 
 public class MockAPIVisitor extends ASTVisitor {
 
-	private List<String> methods = new ArrayList<String>();
+	private String className = null;
 	private List<Annotation> annotations = new ArrayList<Annotation>();
+	private List<String> mockedClassVariables = new ArrayList<String>();
 	
-	// one class can have several annotations
-	private Map<String, List<Annotation>> classLevelAnnotations 
-		= new HashMap<String, List<Annotation>>();
 	
 	@Override
 	public boolean visit(MethodDeclaration node) {
-		String methodName = node.getName().getFullyQualifiedName().toString(); 
-		methods.add(methodName);
-		//System.out.println("MethodDeclaration: " + methodName);
 		return super.visit(node);
 	}
 	
 	@Override
 	public boolean visit(AnnotationTypeDeclaration node) {
-		//System.out.println("AnnotationTypeDeclaration: " + node.getName());
 		return super.visit(node);
 	}
 	
 	@Override
 	public boolean visit(TypeDeclaration node) {
-		System.out.println("TypeDeclaration: " + node.getName());
+		// will give us the referenced Java class for recording
+		this.className = node.getName().toString();
 		return super.visit(node);
 	}
 	
 	@Override
 	public boolean visit(NormalAnnotation node) {
-		//System.out.println("NormalAnnotation: " + node.toString());
-		annotations.add(node);
+		this.annotations.add(node);
 		return super.visit(node);
 	}
 	
 	@Override
 	public boolean visit(MarkerAnnotation node) {
-		//System.out.println("MarkerAnnoration: " + node.toString());
-		annotations.add(node);
+		this.annotations.add(node);
 		return super.visit(node);
 	}
 	
 	@Override
 	public boolean visit(SingleMemberAnnotation node) {
-		//System.out.println("SingleMemberAnnotation: " + node.toString());
-		annotations.add(node);
+		this.annotations.add(node);
 		return super.visit(node);
 	}
 	
 	@Override
 	public boolean visit(FieldDeclaration node) {
-		System.out.println("FieldDeclaration: " + node.toString());
-		// TODO if FieldDeclaration contains the mock API reference,
-		// we want to begin the recording process
-		
-		
-		// want to check if the FieldDeclaration contains mockito MarkerAnnotation
+		/**
+		 * Check if the FieldDeclaration contains a mockito annotation
+		 * for example `@Mock`
+		 * or `@Captor`
+		 * or `@Spy`
+		 */
 		for (Object obj : node.modifiers()) {
 			if (obj instanceof Annotation) {
 				Annotation annotation = (Annotation) obj;
 				if (node.getType().resolveBinding() != null
-						&& annotation.resolveTypeBinding().getQualifiedName().toLowerCase().contains("mock")) {
+						&& (annotation.resolveTypeBinding().getQualifiedName().toLowerCase().contains("mock") 
+								|| annotation.resolveTypeBinding().getQualifiedName().toLowerCase().contains("spy") 
+								|| annotation.resolveTypeBinding().getQualifiedName().toLowerCase().contains("captor"))) {
 					// TODO trigger recording process
-					System.out.println("!!!MOCK PRESENT IN: " + node.getType().resolveBinding().getQualifiedName() + " !!!");
+					
+					this.mockedClassVariables.add(node.getType().resolveBinding().getQualifiedName());
 				}
 			}
 		}
 		
-		// want to check of the VariableDeclarationFragment to see if the RHS contains a mock call
+		/**
+		 * Check if the FieldDeclaration contains a mockito API call in the variable assignment
+		 * for example `private Car mockCar = mock(Car.class);`
+		 */
 		for (Object obj : node.fragments()) {
-			System.out.println(String.format("Fragments present are: %s", obj.toString()));
 			if (obj instanceof VariableDeclarationFragment) {
 				VariableDeclarationFragment declaration = (VariableDeclarationFragment) obj;
-				if (declaration.getInitializer().toString().toLowerCase().contains("mock")) {
+				if (declaration.getInitializer() != null 
+						&& declaration.getInitializer().toString().toLowerCase().contains("mock")) {
 					// TODO trigger recording process
-					System.out.println("!!!MOCK PRESENT IN: " + declaration.getInitializer().toString() + " !!!");
+					
+					this.mockedClassVariables.add(declaration.getInitializer().toString());
 				}	
 			}
 		}
@@ -102,8 +101,17 @@ public class MockAPIVisitor extends ASTVisitor {
 		return super.visit(node);
 	}
 	
-	public List<String> getMethods() {
-		return methods;
+	public String getClassName() {
+		return this.className;
+	}
+	
+	
+	public List<Annotation> getAnnotations() {
+		return this.annotations;
+	}
+	
+	public List<String> getMockedClassVariables() {
+		return this.mockedClassVariables;
 	}
 	
 	
